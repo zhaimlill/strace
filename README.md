@@ -1,3 +1,37 @@
+Added a new option: syscall_callback_script. You can use it to specify shell script to call back if sys-execve is executing in tracee.
+Usage: strace -f --syscall_callback_script=<script> <executable>
+shell script example:
+[mzhai@strace]$ cat test.sh
+#!/usr/bin/bash
+#callback script once strace detecting system call execve. input args:
+# $1: pid of execve target
+# $2: execve targe. eg. /usr/bin/ls
+# $3: tcp->flags, tcp is a structure in strace source code. 
+
+#exit 100: let strace detach the target(pid=$1) so that you can attach it by gdb.
+#other exit code: don't detach, strace will continue.
+
+echo "tracee pid=$1, arg0(execve)=$2, flags=$3" >> mzhai.txt
+
+bname=$(basename "$2")
+if [ "$bname" = "exe2" ]; then
+        echo "Found $bname" >> mzhai.txt
+        #pause execve target
+        kill -19 $1
+        #hard code. Notify strace to detach execve target
+        exit 100
+else
+    exit 0
+fi
+
+#1. you can use gdb to attach execve target,
+#2. then in another session run 'kill -18 $1' to let target continue running.
+#3. go back to gdb, enjoy debugging.
+
+
+----------------------Original readme-----------------
+
+
 strace - the linux syscall tracer
 =================================
 

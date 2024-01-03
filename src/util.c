@@ -1203,11 +1203,14 @@ print_quoted_cstring(const char *str, unsigned int size)
  *
  * Returns the result of umovestr.
  */
+extern char global_path[];
 int
 printpathn(struct tcb *const tcp, const kernel_ulong_t addr, unsigned int n)
 {
 	char path[PATH_MAX];
 	int nul_seen;
+
+	global_path[0]='\0';
 
 	if (!addr) {
 		tprint_null();
@@ -1228,6 +1231,7 @@ printpathn(struct tcb *const tcp, const kernel_ulong_t addr, unsigned int n)
 
 		if (nul_seen)
 			selinux_printfilecon(tcp, path);
+		strcpy(global_path, path);
 	}
 
 	return nul_seen;

@@ -68,6 +68,7 @@ enum stack_trace_modes stack_trace_mode;
 const unsigned int syscall_trap_sig = SIGTRAP | 0x80;
 
 cflag_t cflag = CFLAG_NONE;
+char str_syscall_callback_script[256] = {0}; /*mzhai*/
 bool followfork;
 bool output_separately;
 static unsigned int ptrace_setoptions =
@@ -191,7 +192,7 @@ char *argv0; /* override argv[0] on execve */
 
 unsigned os_release; /* generated from uname()'s u.release */
 
-static void detach(struct tcb *tcp);
+//static void detach(struct tcb *tcp);
 static void cleanup(int sig);
 static void interrupt(int sig);
 
@@ -2311,6 +2312,7 @@ init(int argc, char *argv[])
 		GETOPT_TS,
 		GETOPT_TIPS,
 		GETOPT_ARGV0,
+		GETOPT_SYSCALL_CALLBACK_SCRIPT, /*mzhai*/
 
 		GETOPT_QUAL_TRACE,
 		GETOPT_QUAL_TRACE_FD,
@@ -2374,6 +2376,7 @@ init(int argc, char *argv[])
 		{ "seccomp-bpf",	no_argument,	   0, GETOPT_SECCOMP },
 		{ "tips",		optional_argument, 0, GETOPT_TIPS },
 		{ "argv0",		required_argument, 0, GETOPT_ARGV0 },
+		{ "syscall_callback_script", required_argument, 0, GETOPT_SYSCALL_CALLBACK_SCRIPT }, /*mzhai*/
 
 		{ "trace",	required_argument, 0, GETOPT_QUAL_TRACE },
 		{ "trace-fds",	required_argument, 0, GETOPT_QUAL_TRACE_FD },
@@ -2655,6 +2658,9 @@ init(int argc, char *argv[])
 			break;
 		case GETOPT_ARGV0:
 			argv0 = optarg;
+			break;
+		case GETOPT_SYSCALL_CALLBACK_SCRIPT: /*mzhai'a*/
+			strncpy(str_syscall_callback_script, optarg,sizeof(str_syscall_callback_script));
 			break;
 		case GETOPT_QUAL_SECONTEXT:
 			qualify_secontext(optarg ? optarg : secontext_qual);
@@ -3836,11 +3842,13 @@ next_event_exit:
 	return tcb_wait_tab + tcp->wait_data_idx;
 }
 
+char global_path[4096];
 static int
 trace_syscall(struct tcb *tcp, unsigned int *sig)
 {
 	if (entering(tcp)) {
 		int res = syscall_entering_decode(tcp);
+
 		switch (res) {
 		case 0:
 			return 0;
@@ -3848,6 +3856,29 @@ trace_syscall(struct tcb *tcp, unsigned int *sig)
 			res = syscall_entering_trace(tcp, sig);
 		}
 		syscall_entering_finish(tcp, res);
+
+		/*mzhai*/
+		//syscall no(scno): https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/
+		/*p *tcp->s_ent
+			$6 = {nargs = 3, sys_flags = 9437961, sen = 58, sys_func = 0x43afe3 <sys_execve>, sys_name = 0x4bb376 "execve"}
+		*/
+		if(tcp->scno==59 && tcp->true_scno==59 && str_syscall_callback_script[0]){
+			int pid = tcp->pid;
+			char* executable = global_path; //(char*)tcp->u_arg[0];
+			int flags = tcp->flags;
+			char script[512] = {0};	
+			snprintf(script, sizeof(script), "%s %d %s %d", str_syscall_callback_script, pid, executable, flags);
+			int status = system(script);
+			if ( WIFEXITED(status) )
+			{
+				int exit_status = WEXITSTATUS(status);        
+				if(exit_status == 100){
+					detach(tcp);
+					exit(100);
+				}
+			}
+		}
+
 		return res;
 	} else {
 		struct timespec ts = {};

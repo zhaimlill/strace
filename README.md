@@ -1,7 +1,9 @@
-Added a new option: syscall_callback_script. You can use it to specify shell script to call back if sys-execve is executing in tracee.
-Usage: strace -f --syscall_callback_script=<script> <executable>
-shell script example:
-[mzhai@strace]$ cat test.sh
+**Added a new option**: syscall_callback_script. You can use it to specify shell script to call back if sys-execve is executing in tracee.
+
+**Usage**: strace -f --syscall_callback_script=<script> <executable>
+
+**shell script example**:
+```bash
 #!/usr/bin/bash
 #callback script once strace detecting system call execve. input args:
 # $1: pid of execve target
@@ -27,7 +29,7 @@ fi
 #1. you can use gdb to attach execve target,
 #2. then in another session run 'kill -18 $1' to let target continue running.
 #3. go back to gdb, enjoy debugging.
-
+```
 
 ----------------------Original readme-----------------
 
